@@ -1,0 +1,98 @@
+---
+title: "Bitcoin Forecasting"
+author: "Cordell D. Jones"
+date: "7/8/2020"
+output: html_document
+---
+
+# Summary 
+
+![](https://image.shutterstock.com/image-illustration/bitcoin-banner-header-gold-coin-260nw-712164721.jpg)
+
+From the Wikipedia page for Bitcoin describes the technology and currency as follow:
+
+> "Bitcoin is a decentralized digital currency that enables instant payments to anyone, anywhere in the world. Bitcoin uses peer-to-peer technology to operate with no central authority: transaction management and money issuance are carried out collectively by the network.
+The original Bitcoin software by Satoshi Nakamoto was released under the MIT license. Most client software, derived or "from scratch", also use open source licensing.
+Bitcoin is the first successful implementation of a distributed crypto-currency, described in part in 1998 by Wei Dai on the cypherpunks mailing list. Building upon the notion that money is any object, or any sort of record, accepted as payment for goods and services and repayment of debts in a given country or socio-economic context, Bitcoin is designed around the idea of using cryptography to control the creation and transfer of money, rather than relying on central authorities.
+Bitcoins have all the desirable properties of a money-like good. They are portable, durable, divisible, recognizable, fungible, scarce and difficult to counterfeit." - *Wikipedia* 
+
+All the data and plots represented are pulled from Yahoo Finance's data for Bitcoin. From that pulled data is an analysis of the currency's historical closing price data. This data is then run on a logarithmic scale to show the increasing trend of the currency against the United States Dollar. 
+
+Lastly represented is the next year's price forecast using Facebook, Inc. R prophet package. This model is then plotted in an interactive chart that gives actual vs. predicted with a 95% confidence interval. Lastly, this model performance is then analyzed in the last two plots.
+
+```{r message=FALSE}
+# Libraries
+library(prophet)
+library(lubridate)
+library(ggplot2)
+```
+
+### Plotted Historical Closing Data
+
+```{r message=FALSE, warning=FALSE}
+# Pull bitcoin data
+data <- read.csv("BTC.csv")
+# Or use this if you have any other cryto csv file, data <- read.csv(file.choose(), header = T)
+# Clean date formating if need be
+data$Date <- dmy(data$Date)
+# Plot bitcoin historical data
+qplot(Date, Close, data = data,
+      main = 'Bitcoin Closing Prices 2014-2020')
+```
+
+### Plotted Historical Closing Data Logarithmically 
+
+```{r message=FALSE, warning=FALSE}
+# Log transformation
+ds <- data$Date
+y <- log(data$Close)
+df <- data.frame(ds, y)
+# Plot log transformation
+qplot(ds, y, data = df,
+      main = 'Bitcoin Closing Prices in Log Scale')
+```
+
+### Bitcoin Forecast Pricing
+
+This will pull a year of foretasted data forward from 07/07/2020.
+
+```{r message=FALSE, warning=FALSE}
+# Forecasting with Facebook's prophet package
+m <- prophet(df)
+future <- make_future_dataframe(m, periods = 365)
+forecast <- predict(m, future)
+```
+
+### Forecast Plotting 
+
+Below is the interactive forecasting of Bitcoin for the next 365 days. The next plot shows three trend lines, annually, daily, and monthly. Interestingly, Bitcoin trades at a higher price on Mondays and lowest on Sunday and Thursday. Then as well, the currency trades higher in the late summer months and lower in the spring months. These analyses are based on the last four years of data.
+
+```{r message=FALSE, warning=FALSE}
+# Plot forecast
+dyplot.prophet(m, forecast)
+prophet_plot_components(m, forecast)
+```
+
+### Model Performance
+
+The yhat value is taken from the forecast as it is the predicted value from the modeling. This value and the first 2121 points of it (all current values) are taken and plotted against actual closing prices. 
+
+From this model, a trendline is plotted along with the points. This plot gives an ideal linear graph. Running a summary gives Multiple R-squared values of 0.9935. This value tells us that this model is explaining 99.35% of the variability. 
+
+By doing cross-validation using the performance metrics model, we can calculate MSE, RMSE, MAE, MAPE, and coverage. The rolling window specifies the amount of data used; in this case, it will be 0.1 (10%). This window gives analyzes against four RMSE trends and gives an average trendline between the four depicted in the blue trendline.  
+
+```{r message=FALSE, warning=FALSE}
+# Model performance
+pred <- forecast$yhat[1:2121]
+actual <- m$history$y
+plot(actual, pred)
+abline(lm(pred~actual), col = 'red')
+summary(lm(pred~actual))
+
+x <- cross_validation(m, 365, units = 'days')
+performance_metrics(x, rolling_window = 0.1)
+plot_cross_validation_metric(x,
+                             metric = 'rmse',
+                             rolling_window = 0.2)
+```
+
